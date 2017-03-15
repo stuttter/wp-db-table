@@ -14,13 +14,19 @@ defined( 'ABSPATH' ) || exit;
 
 if ( ! class_exists( 'WP_DB_Table' ) ) :
 /**
- * Base WPDB Table class
+ * The base WordPress database table class, which facilitates the creation of
+ * and schema changes to individual database tables.
  *
- * This class facilitates the following functionality:
+ * This class is intended to be extended for each unique database table,
+ * including global multisite tables and users tables.
  *
- * - Creates & maintains a database table
- * - Deletes all data for sites when sites are deleted
- * - Adds table to the main database object when appropriate
+ * It exists to make managing database tables in WordPress as easy as possible.
+ *
+ * Extending this class comes with several automatic benefits:
+ * - Activation hook makes it great for plugins
+ * - Tables store their versions in the database independently
+ * - Tables upgrade via independent upgrade abstract methods
+ * - Multisite friendly - site tables switch on "switch_blog" action
  *
  * @since 1.0.0
  */
