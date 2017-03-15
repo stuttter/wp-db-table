@@ -154,11 +154,6 @@ abstract class WP_DB_Table {
 	 */
 	public function maybe_upgrade() {
 
-		// Bail if global and upgrading global tables is not allowed
-		if ( ( true === $this->global ) && ! wp_should_upgrade_global_tables() ) {
-			return;
-		}
-
 		// Bail if no upgrade needed
 		if ( version_compare( (int) $this->db_version, (int) $this->version, '>=' ) ) {
 			return;
@@ -167,6 +162,11 @@ abstract class WP_DB_Table {
 		// Include file with dbDelta() for create/upgrade usages
 		if ( ! function_exists( 'dbDelta' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		}
+
+		// Bail if global and upgrading global tables is not allowed
+		if ( ( true === $this->global ) && ! wp_should_upgrade_global_tables() ) {
+			return;
 		}
 
 		// Create or upgrade?
