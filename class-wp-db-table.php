@@ -202,7 +202,7 @@ abstract class WP_DB_Table {
 	/**
 	 * Modify the database object and add the table to it
 	 *
-	 * This is necessary to do directly because WordPress does have a mechanism
+	 * This is necessary to do directly because WordPress does not have a mechanism
 	 * for manipulating them safely. It's pretty fragile, but oh well.
 	 *
 	 * @since 1.0.0
