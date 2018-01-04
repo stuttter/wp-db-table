@@ -5,7 +5,7 @@
  *
  * @author  JJJ
  * @link    https://jjj.blog
- * @version 1.1.0
+ * @version 1.2.0
  * @license https://www.gnu.org/licenses/gpl-2.0.html
  */
 
@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 
 if ( ! class_exists( 'WP_DB_Table' ) ) :
 /**
- * The base WordPress database table class, which facilitates the creation of
+ * A base WordPress database table class, which facilitates the creation of
  * and schema changes to individual database tables.
  *
  * This class is intended to be extended for each unique database table,
@@ -28,7 +28,7 @@ if ( ! class_exists( 'WP_DB_Table' ) ) :
  * - Tables upgrade via independent upgrade abstract methods
  * - Multisite friendly - site tables switch on "switch_blog" action
  *
- * @since 1.0.0
+ * @since 1.1.0
  */
 abstract class WP_DB_Table {
 
@@ -36,6 +36,11 @@ abstract class WP_DB_Table {
 	 * @var string Table name, without the global table prefix
 	 */
 	protected $name = '';
+
+	/**
+	 * @var string Optional description.
+	 */
+	protected $description = '';
 
 	/**
 	 * @var int Database version
@@ -82,7 +87,7 @@ abstract class WP_DB_Table {
 	/**
 	 * Hook into queries, admin screens, and more!
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
 	public function __construct() {
 
@@ -92,7 +97,7 @@ abstract class WP_DB_Table {
 		}
 
 		// Setup the database
-		$this->set_db();
+		$this->setup();
 
 		// Get the version of he table currently in the database
 		$this->get_db_version();
@@ -112,14 +117,14 @@ abstract class WP_DB_Table {
 	/**
 	 * Setup this database table
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
 	protected abstract function set_schema();
 
 	/**
 	 * Upgrade this database table
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
 	protected abstract function upgrade();
 
@@ -130,14 +135,14 @@ abstract class WP_DB_Table {
 	 *
 	 * Hooked to the "switch_blog" action.
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 *
-	 * @param int $site_id
+	 * @param int $site_id The site being switched to
 	 */
 	public function switch_blog( $site_id = 0 ) {
 
 		// Update DB version based on the current site
-		if ( false === $this->global ) {
+		if ( ! $this->is_global() ) {
 			$this->db_version = get_blog_option( $site_id, $this->db_version_key, false );
 		}
 
@@ -150,7 +155,7 @@ abstract class WP_DB_Table {
 	 *
 	 * Hooked to the "admin_init" action.
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
 	public function maybe_upgrade() {
 
@@ -159,13 +164,8 @@ abstract class WP_DB_Table {
 			return;
 		}
 
-		// Include file with dbDelta() for create/upgrade usages
-		if ( ! function_exists( 'dbDelta' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-		}
-
 		// Bail if global and upgrading global tables is not allowed
-		if ( ( true === $this->global ) && ! wp_should_upgrade_global_tables() ) {
+		if ( $this->is_global() && ! wp_should_upgrade_global_tables() ) {
 			return;
 		}
 
@@ -174,7 +174,7 @@ abstract class WP_DB_Table {
 			? $this->upgrade()
 			: $this->create();
 
-		// Set the database version
+		// Only set database version if table exists
 		if ( $this->exists() ) {
 			$this->set_db_version();
 		}
@@ -183,11 +183,11 @@ abstract class WP_DB_Table {
 	/** Private ***************************************************************/
 
 	/**
-	 * Setup the necessary WPDB variables
+	 * Setup the necessary table variables
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
-	private function set_db() {
+	private function setup() {
 
 		// Setup database
 		$this->db   = $GLOBALS['wpdb'];
@@ -202,15 +202,15 @@ abstract class WP_DB_Table {
 	/**
 	 * Modify the database object and add the table to it
 	 *
-	 * This is necessary to do directly because WordPress does not have a mechanism
-	 * for manipulating them safely. It's pretty fragile, but oh well.
+	 * This must be done directly because WordPress does not have a mechanism
+	 * for manipulating them safely
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
 	private function set_wpdb_tables() {
 
 		// Global
-		if ( true === $this->global ) {
+		if ( $this->is_global() ) {
 			$prefix                       = $this->db->get_blog_prefix( 0 );
 			$this->db->{$this->name}      = "{$prefix}{$this->name}";
 			$this->db->ms_global_tables[] = $this->name;
@@ -237,11 +237,11 @@ abstract class WP_DB_Table {
 	}
 
 	/**
-	 * Set the database version to the table version.
+	 * Set the database version for the table
 	 *
-	 * Saves global table version to "wp_sitemeta" to the main network
+	 * Global table version in "_sitemeta" on the main network
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
 	private function set_db_version() {
 
@@ -249,20 +249,20 @@ abstract class WP_DB_Table {
 		$this->db_version = $this->version;
 
 		// Update the DB version
-		( true === $this->global )
+		$this->is_global()
 			? update_network_option( null, $this->db_version_key, $this->version )
 			:         update_option(       $this->db_version_key, $this->version );
 	}
 
 	/**
-	 * Get the table version from the database.
+	 * Get the table version from the database
 	 *
-	 * Gets global table version from "wp_sitemeta" to the main network
+	 * Global table version from "_sitemeta" on the main network
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
 	private function get_db_version() {
-		$this->db_version = ( true === $this->global )
+		$this->db_version = $this->is_global()
 			? get_network_option( null, $this->db_version_key, false )
 			:         get_option(       $this->db_version_key, false );
 	}
@@ -270,7 +270,7 @@ abstract class WP_DB_Table {
 	/**
 	 * Add class hooks to WordPress actions
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
 	private function add_hooks() {
 
@@ -285,21 +285,32 @@ abstract class WP_DB_Table {
 	/**
 	 * Create the table
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 */
 	private function create() {
 
-		// Run CREATE TABLE query
-		$created = dbDelta( array( "CREATE TABLE {$this->table_name} ( {$this->schema} ) {$this->charset_collation};" ) );
+		// Include file with dbDelta() for create/upgrade usages
+		if ( ! function_exists( 'dbDelta' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		}
 
-		// Was anything created?
+		// Bail if dbDelta() moved in WordPress core
+		if ( ! function_exists( 'dbDelta' ) ) {
+			return false;
+		}
+
+		// Run CREATE TABLE query
+		$query   = "CREATE TABLE {$this->table_name} ( {$this->schema} ) {$this->charset_collation};";
+		$created = dbDelta( array( $query ) );
+
+		// Was the table created?
 		return ! empty( $created );
 	}
 
 	/**
 	 * Check if table already exists
 	 *
-	 * @since 1.0.0
+	 * @since 1.1.0
 	 *
 	 * @return bool
 	 */
@@ -309,7 +320,21 @@ abstract class WP_DB_Table {
 		$prepared    = $this->db->prepare( $query, $like );
 		$table_exist = $this->db->get_var( $prepared );
 
+		// Does the table exist?
 		return ! empty( $table_exist );
+	}
+
+	/**
+	 * Check if table is global
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return bool
+	 */
+	private function is_global() {
+
+		// Is the table global?
+		return ( true === $this->global );
 	}
 }
 endif;
